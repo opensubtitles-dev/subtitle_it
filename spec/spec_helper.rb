@@ -11,6 +11,10 @@ module SubFixtures
     File.open(File.expand_path(File.dirname(__FILE__) + '/fixtures/pulpfiction.sub'))
   end
 
+  def blank_line_inside_cue
+    File.open(File.expand_path(File.dirname(__FILE__) + '/fixtures/blank_line_inside_cue.srt'))
+  end
+
   def srt_fixture
     File.open(File.expand_path(File.dirname(__FILE__) + '/fixtures/godfather.srt'))
   end
