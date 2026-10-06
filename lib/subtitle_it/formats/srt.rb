@@ -27,26 +27,46 @@ module Formats
     @frmted = fix_srt_empty_lines_gpt(@raw)
     #  @logger.debug("DEBUG parse_srt 01.  formatted:\n#{@raw}\n.......................\n#{@frmted }")
     @frmted.split(endl * 2).inject([]) do |final, line|
-
-      #  @logger.debug("1. parse_srt line:#{line.inspect}")
       line = line.split(endl)
+
+      # A block with no timestamp line is not a cue. It is what a blank line
+      # INSIDE a cue's text looks like after the split on blank lines above:
+      #
+      #     12
+      #     00:01:02,000 --> 00:01:04,000
+      #     first half
+      #
+      #     second half          <- arrives here as a block of its own
+      #
+      # Machine translation produces exactly this (two alternatives separated
+      # by an empty line), and so do hand-edited uploads.
+      #
+      # This branch used to end on a logger call, so the block's value -- and
+      # therefore inject's accumulator -- became `true`, and the NEXT block
+      # raised "undefined method '<<' for true". One stray blank line made the
+      # whole file unparseable. Keep the text with the cue it belongs to and,
+      # whatever happens, hand the accumulator back.
+      if line.none? { |l| l.include?("-->") }
+        orphan = line.map(&:strip).reject(&:empty?)
+        previous = final.last
+        if previous && !previous.text.nil? && orphan.any? && !orphan.all? { |l| l =~ /\A\d+\z/ }
+          previous.text = [previous.text, *orphan].reject(&:empty?).join("|")
+        else
+          @logger.debug("parse_srt dropped a block with no timestamp: #{line.inspect}")
+        end
+        next final
+      end
+
       line.delete_at(0)
-      #   @logger.debug("2. parse_srt line[0]:#{line[0]}")
       unless line[0].nil?
         txtline = line[0].gsub(": ", ":")
-        #  @logger.debug("3. parse_srt txtline:#{txtline}")
         time_on, time_off = txtline.split("-->").map(&:strip)
         line.delete_at(0)
 
         text = line.join("|")
-        # if text.nil?
-        #puts("2. parse_srt time_on:#{time_on} time_off:#{time_off} text:#{text}")
-
-        # end
-        final << SubtitleIt::Subline.new(time_on, time_off, text) unless final.nil?
-      else
-        @logger.debug("SHIT IS HERE parse_srt line:#{line.inspect}")
+        final << SubtitleIt::Subline.new(time_on, time_off, text)
       end
+      final
     end
   end
 

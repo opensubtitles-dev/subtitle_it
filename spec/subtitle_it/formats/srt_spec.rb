@@ -226,6 +226,38 @@ describe Formats, '.srt' do
   
   
   
+  # A blank line inside a cue's text used to turn inject's accumulator into
+  # `true` and raise "undefined method '<<' for true" on the following block,
+  # so one stray empty line made the entire file unparseable.
+  #
+  # The fixture uses DOT millisecond separators on purpose. Subtitle#fix_empty_lines
+  # only recognises comma timestamps, and for those it swallows the blank line
+  # before parse_srt ever sees it -- which is why this went unnoticed. Content
+  # written by Webvtt::File#to_srt (every AI translation) has dots, skips that
+  # pre-pass entirely, and reaches parse_srt with the blank line intact.
+  describe "blank line inside a cue" do
+    before(:each) do
+      @blank_inside = Subtitle.new(dump: blank_line_inside_cue, format: 'srt')
+    end
+
+    it 'should still parse the file to an array' do
+      expect(@blank_inside.lines).to be_instance_of(Array)
+    end
+
+    it 'should keep every cue, including the ones after the blank line' do
+      expect(@blank_inside.lines.length).to eq(4)
+      expect(@blank_inside.lines[2].text).to eql('The cue after the blank line.')
+    end
+
+    it 'should keep the text after the blank line with its cue' do
+      expect(@blank_inside.lines[1].text).to eql('One reading of the line.|Another reading of the same line.')
+    end
+
+    it 'should export it back as valid srt' do
+      expect(@blank_inside.to_srt.scan('-->').size).to eq(4)
+    end
+  end
+
   describe "bug parsing first line empty" do
      before(:each) do
        @bug_parsing=Subtitle.new(dump: bug_parsing, format: 'srt')
